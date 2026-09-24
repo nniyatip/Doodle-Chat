@@ -23,3 +23,13 @@
 .time {
   display: block;
 }
+
+/* Own messages: right-aligned yellow bubble with the time on the right (see mockups). */
+.own {
+  align-self: flex-end;
+  background: var(--color-own-bubble);
+}
+
+.own .time {
+  text-align: end;
+}

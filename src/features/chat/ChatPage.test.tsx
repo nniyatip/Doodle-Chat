@@ -1,3 +1,4 @@
+import { QueryClientProvider } from '@tanstack/react-query'
 import { screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -93,6 +94,34 @@ describe('ChatPage', () => {
     )
     expect(time.tagName).toBe('TIME')
     expect(time).toHaveAttribute('dateTime', older.createdAt)
+  })
+
+  it("marks the current user's messages as own, following name changes", async () => {
+    fetchMock.mockResolvedValue(
+      jsonResponse(200, [
+        message({ author: 'Nando', message: 'Mine', createdAt: minutesAgo(5) }),
+        message({ author: 'Maddie', message: 'Theirs', createdAt: minutesAgo(3) }),
+      ]),
+    )
+    const { rerender, queryClient } = renderPage()
+
+    const list = await screen.findByRole('log', { name: 'Messages' })
+    const items = within(list).getAllByRole('listitem')
+    const mine = within(items[0] as HTMLElement)
+    const theirs = within(items[1] as HTMLElement)
+    expect(mine.getByText('You')).toBeInTheDocument()
+    expect(mine.queryByText('Nando')).not.toBeInTheDocument()
+    expect(theirs.getByText('Maddie')).toBeInTheDocument()
+
+    rerender(
+      <QueryClientProvider client={queryClient}>
+        <ChatPage userName="Maddie" onChangeName={vi.fn()} />
+      </QueryClientProvider>,
+    )
+
+    expect(mine.getByText('Nando')).toBeInTheDocument()
+    expect(theirs.getByText('You')).toBeInTheDocument()
+    expect(theirs.queryByText('Maddie')).not.toBeInTheDocument()
   })
 
   it('shows an empty state when there are no messages', async () => {

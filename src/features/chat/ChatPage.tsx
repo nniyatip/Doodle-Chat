@@ -25,7 +25,11 @@ export function ChatPage({ userName, onChangeName }: ChatPageProps) {
 
   const renderContent = () => {
     if (messages) {
-      return messages.length > 0 ? <MessageList messages={messages} /> : <ChatEmpty />
+      return messages.length > 0 ? (
+        <MessageList messages={messages} currentUserName={userName} />
+      ) : (
+        <ChatEmpty />
+      )
     }
     if (error) {
       return (

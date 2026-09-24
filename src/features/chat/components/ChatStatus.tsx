@@ -2,7 +2,7 @@ import styles from './ChatStatus.module.css'
 
 export function ChatLoading() {
   return (
-    <div className={styles.loading}>
+    <div>
       <p role="status" className="visually-hidden">
         Loading messages…
       </p>

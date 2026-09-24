@@ -10,8 +10,13 @@ export default mergeConfig(
       setupFiles: ['./src/test/setup.ts'],
       include: ['src/**/*.test.{ts,tsx}'],
       css: false,
-      // Dates in tests are asserted against a fixed timezone so they are stable on every machine.
-      env: { TZ: 'UTC' },
+      env: {
+        // Dates in tests are asserted against a fixed timezone so they are stable on every machine.
+        TZ: 'UTC',
+        // Fixed API config so tests never depend on a developer's local .env file.
+        VITE_API_URL: 'http://api.test/api/v1',
+        VITE_API_TOKEN: 'test-token',
+      },
     },
   }),
 )

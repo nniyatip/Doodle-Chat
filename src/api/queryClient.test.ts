@@ -14,7 +14,11 @@ describe('shouldRetry', () => {
     for (const status of [0, 408, 500, 503]) {
       expect(shouldRetry(0, new ApiError(status, 'Try again'))).toBe(true)
     }
-    expect(shouldRetry(0, new TypeError('Failed to fetch'))).toBe(true)
+  })
+
+  it('does not retry errors that are not ApiErrors (cancellations, bugs)', () => {
+    expect(shouldRetry(0, new DOMException('Aborted', 'AbortError'))).toBe(false)
+    expect(shouldRetry(0, new TypeError('x is undefined'))).toBe(false)
   })
 
   it('stops after two retries', () => {

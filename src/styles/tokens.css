@@ -1,0 +1,54 @@
+/*
+ * Design tokens derived from the challenge mockups (assets/Messaging S|M (notes)@2x.png).
+ * Colours were adjusted only where the mockup failed WCAG AA contrast:
+ *  - accent (Send button) darkened from #ff7e67 to #ca4c35 so white text reaches >= 4.5:1
+ *  - muted text uses #5c6670 so it passes on both white and the yellow "own message" bubble
+ */
+:root {
+  /* Colours */
+  --color-bg: #f8f8f8;
+  --color-surface: #ffffff;
+  --color-border: #dfe3e8;
+  --color-text: #2d3238;
+  --color-text-muted: #5c6670;
+  --color-own-bubble: #fdf3c4;
+  --color-primary: #1e8fd5;
+  --color-primary-dark: #146ba5;
+  --color-accent: #ca4c35;
+  --color-accent-hover: #ba4631;
+  --color-on-accent: #ffffff;
+  --color-danger: #b42318;
+  --color-danger-bg: #fef3f2;
+  --color-focus: #146ba5;
+
+  /* Spacing (mockup annotations: 8 / 16 / 24) */
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-6: 1.5rem;
+  --space-8: 2rem;
+
+  /* Layout */
+  --content-max-width: 40rem; /* 640px, "maxw = 640" in the tablet mockup */
+  --bubble-max-width: 26.25rem; /* 420px in the tablet mockup */
+  --control-height: 3rem; /* 48px touch target */
+  --radius-sm: 0.25rem;
+  --radius-md: 0.5rem;
+
+  /* Typography */
+  --font-sans:
+    system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  --text-sm: 0.875rem;
+  --text-base: 1rem;
+  --text-md: 1.0625rem;
+  --text-lg: 1.125rem;
+  --leading-normal: 1.5;
+
+  /* Elevation */
+  --shadow-sm: 0 1px 2px rgb(0 0 0 / 6%);
+
+  /* Motion */
+  --duration-fast: 150ms;
+  --easing: cubic-bezier(0.2, 0, 0, 1);
+}

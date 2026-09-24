@@ -28,7 +28,7 @@ export interface RequestOptions {
   signal?: AbortSignal
 }
 
-const MESSAGES = {
+export const ERROR_MESSAGES = {
   unauthorized: 'Not authorised. Check VITE_API_TOKEN in your .env file.',
   timeout: 'The server took too long to respond. Please try again.',
   server: 'Something went wrong on the server. Please try again.',
@@ -36,7 +36,7 @@ const MESSAGES = {
   invalidResponse: 'The server sent an unexpected response.',
 } as const
 
-const isRecord = (value: unknown): value is Record<string, unknown> =>
+export const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null
 
 const isFieldError = (value: unknown): value is FieldError =>
@@ -65,8 +65,8 @@ const readErrorPayload = async (response: Response): Promise<unknown> => {
  */
 const toApiError = async (response: Response): Promise<ApiError> => {
   const { status } = response
-  if (status === 401) return new ApiError(status, MESSAGES.unauthorized)
-  if (status === 408) return new ApiError(status, MESSAGES.timeout)
+  if (status === 401) return new ApiError(status, ERROR_MESSAGES.unauthorized)
+  if (status === 408) return new ApiError(status, ERROR_MESSAGES.timeout)
 
   const payload = await readErrorPayload(response)
   const message =
@@ -75,7 +75,7 @@ const toApiError = async (response: Response): Promise<ApiError> => {
 
   const [firstFieldError] = fieldErrors
   if (firstFieldError) return new ApiError(status, firstFieldError.message, fieldErrors)
-  if (status >= 500) return new ApiError(status, MESSAGES.server)
+  if (status >= 500) return new ApiError(status, ERROR_MESSAGES.server)
   if (typeof message === 'string' && message) return new ApiError(status, message)
   return new ApiError(status, `Request failed with status ${status}.`)
 }
@@ -118,14 +118,14 @@ export async function request<T>(
     try {
       return JSON.parse(text) as T
     } catch {
-      throw new ApiError(response.status, MESSAGES.invalidResponse)
+      throw new ApiError(response.status, ERROR_MESSAGES.invalidResponse)
     }
   } catch (error) {
     if (error instanceof ApiError) throw error
     // Cancelled by the caller (e.g. TanStack Query on unmount): not an error for the UI.
     if (signal?.aborted) throw error
-    if (controller.signal.aborted) throw new ApiError(408, MESSAGES.timeout)
-    throw new ApiError(0, MESSAGES.unreachable)
+    if (controller.signal.aborted) throw new ApiError(408, ERROR_MESSAGES.timeout)
+    throw new ApiError(0, ERROR_MESSAGES.unreachable)
   } finally {
     clearTimeout(timeoutId)
     signal?.removeEventListener('abort', abortFromCaller)

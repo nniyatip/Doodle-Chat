@@ -1,16 +1,25 @@
-import { render, screen } from '@testing-library/react'
+import { screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import App from './App.tsx'
+import { renderWithQueryClient } from './test/renderWithQueryClient.tsx'
 
 beforeEach(() => {
   localStorage.clear()
+  vi.stubGlobal(
+    'fetch',
+    vi.fn<typeof fetch>(async () => new Response('[]', { status: 200 })),
+  )
+})
+
+afterEach(() => {
+  vi.unstubAllGlobals()
 })
 
 describe('App', () => {
   it('asks for a name on the first visit', () => {
-    render(<App />)
+    renderWithQueryClient(<App />)
 
     expect(
       screen.getByRole('heading', { name: 'Welcome to Doodle Chat' }),
@@ -18,18 +27,20 @@ describe('App', () => {
     expect(screen.getByLabelText('Your name')).toBeInTheDocument()
   })
 
-  it('remembers the name after it is submitted', async () => {
+  it('opens the chat and remembers the name after it is submitted', async () => {
     const user = userEvent.setup()
-    const { unmount } = render(<App />)
+    const { unmount } = renderWithQueryClient(<App />)
 
     await user.type(screen.getByLabelText('Your name'), 'Nando{Enter}')
 
+    expect(screen.getByRole('heading', { name: 'Doodle Chat' })).toBeInTheDocument()
     expect(screen.getByText('Nando')).toBeInTheDocument()
     expect(localStorage.getItem('doodle-chat:user')).toBe('Nando')
+    expect(await screen.findByText('No messages yet')).toBeInTheDocument()
 
     // Simulates a reload: a fresh render reads the saved name and skips the form.
     unmount()
-    render(<App />)
+    renderWithQueryClient(<App />)
 
     expect(screen.queryByLabelText('Your name')).not.toBeInTheDocument()
     expect(screen.getByText('Nando')).toBeInTheDocument()
@@ -38,7 +49,7 @@ describe('App', () => {
   it('lets the user cancel or change the name', async () => {
     localStorage.setItem('doodle-chat:user', 'Nando')
     const user = userEvent.setup()
-    render(<App />)
+    renderWithQueryClient(<App />)
 
     await user.click(screen.getByRole('button', { name: 'Change name' }))
     expect(screen.getByLabelText('Your name')).toHaveValue('Nando')

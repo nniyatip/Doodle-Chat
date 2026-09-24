@@ -1,0 +1,72 @@
+/* Full-height column: only the message area scrolls, so the header (and later the
+   composer) always stay visible. */
+.page {
+  display: flex;
+  flex-direction: column;
+  height: 100dvh;
+}
+
+.header {
+  flex-shrink: 0;
+  padding: var(--space-3) var(--space-4);
+  background: var(--color-surface);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.headerInner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-4);
+  max-width: var(--content-max-width);
+  margin: 0 auto;
+}
+
+.title {
+  margin-right: auto;
+  font-size: var(--text-lg);
+}
+
+.userInfo {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.user {
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+}
+
+.user strong {
+  color: var(--color-text);
+}
+
+.changeName {
+  min-height: 2.75rem;
+  padding: 0 var(--space-2);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--color-primary-dark);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.main {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.content {
+  max-width: var(--content-max-width);
+  margin: 0 auto;
+  padding: var(--space-6) var(--space-4);
+}
+
+@media (min-width: 40rem) {
+  .content {
+    padding-inline: var(--space-6);
+  }
+}

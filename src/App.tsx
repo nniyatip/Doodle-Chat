@@ -1,5 +1,6 @@
 import { useState } from 'react'
 
+import { ChatPage } from './features/chat/ChatPage.tsx'
 import { useCurrentUser } from './features/user/useCurrentUser.ts'
 import { UserNameForm } from './features/user/UserNameForm.tsx'
 
@@ -20,16 +21,5 @@ export default function App() {
     )
   }
 
-  // Placeholder until the chat page is added in the next step.
-  return (
-    <main>
-      <h1>Doodle Chat</h1>
-      <p>
-        Chatting as <strong>{userName}</strong>
-      </p>
-      <button type="button" onClick={() => setIsChangingName(true)}>
-        Change name
-      </button>
-    </main>
-  )
+  return <ChatPage userName={userName} onChangeName={() => setIsChangingName(true)} />
 }

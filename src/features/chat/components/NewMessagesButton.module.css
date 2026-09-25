@@ -1,0 +1,15 @@
+.button {
+  position: absolute;
+  bottom: var(--space-4);
+  left: 50%;
+  translate: -50% 0;
+  min-height: 2.75rem;
+  padding: 0 var(--space-4);
+  font-size: var(--text-sm);
+  font-weight: 700;
+  white-space: nowrap;
+  color: var(--color-on-accent);
+  background: var(--color-primary-dark);
+  border-radius: 999px;
+  box-shadow: var(--shadow-sm);
+}

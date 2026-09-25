@@ -16,6 +16,9 @@ export interface NewMessage {
 
 export const MESSAGES_PAGE_SIZE = 50
 
+/** The API rejects longer (trimmed) messages. */
+export const MESSAGE_MAX_LENGTH = 500
+
 /**
  * `before` returns the newest messages older than a timestamp, `after` the messages newer
  * than it; both come back in chronological order. The API rejects combining them, so the

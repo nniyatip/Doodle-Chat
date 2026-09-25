@@ -124,6 +124,46 @@ describe('ChatPage', () => {
     expect(theirs.queryByText('Maddie')).not.toBeInTheDocument()
   })
 
+  it('adds a sent message to the end of the list as your own', async () => {
+    const sent = message({
+      author: 'Nando',
+      message: 'My reply',
+      createdAt: minutesAgo(0),
+    })
+    fetchMock
+      .mockResolvedValueOnce(jsonResponse(200, [message({ message: 'Anyone here?' })]))
+      .mockResolvedValueOnce(jsonResponse(201, sent))
+    const { user } = renderPage()
+
+    const list = await screen.findByRole('log', { name: 'Messages' })
+    await user.type(screen.getByRole('textbox', { name: 'Message' }), 'My reply{Enter}')
+
+    await within(list).findByText('My reply')
+    const items = within(list).getAllByRole('listitem')
+    expect(items).toHaveLength(2)
+    const last = within(items[1] as HTMLElement)
+    expect(last.getByText('My reply')).toBeInTheDocument()
+    expect(last.getByText('You')).toBeInTheDocument()
+    // Only the initial GET and the POST: the reply is added without refetching.
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+  })
+
+  it('replaces the empty state with the first sent message', async () => {
+    fetchMock
+      .mockResolvedValueOnce(jsonResponse(200, []))
+      .mockResolvedValueOnce(
+        jsonResponse(201, message({ author: 'Nando', message: 'Hi!' })),
+      )
+    const { user } = renderPage()
+
+    await screen.findByText('No messages yet')
+    await user.type(screen.getByRole('textbox', { name: 'Message' }), 'Hi!{Enter}')
+
+    const list = await screen.findByRole('log', { name: 'Messages' })
+    expect(within(list).getByText('Hi!')).toBeInTheDocument()
+    expect(screen.queryByText('No messages yet')).not.toBeInTheDocument()
+  })
+
   it('shows an empty state when there are no messages', async () => {
     fetchMock.mockResolvedValue(jsonResponse(200, []))
 

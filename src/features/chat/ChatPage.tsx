@@ -1,7 +1,8 @@
-import { useLayoutEffect, useRef } from 'react'
+import { useLayoutEffect, useRef, useState } from 'react'
 
 import styles from './ChatPage.module.css'
 import { ChatEmpty, ChatError, ChatLoading } from './components/ChatStatus.tsx'
+import { MessageComposer } from './components/MessageComposer.tsx'
 import { MessageList } from './components/MessageList.tsx'
 import { useMessages } from './hooks/useMessages.ts'
 
@@ -22,6 +23,14 @@ export function ChatPage({ userName, onChangeName }: ChatPageProps) {
     container.scrollTop = container.scrollHeight
     hasScrolledToLatest.current = true
   }, [messages])
+
+  // The cache already holds the sent message when `sentCount` changes, so this render has it.
+  const [sentCount, setSentCount] = useState(0)
+  useLayoutEffect(() => {
+    const container = scrollRef.current
+    if (sentCount === 0 || !container) return
+    container.scrollTop = container.scrollHeight
+  }, [sentCount])
 
   const renderContent = () => {
     if (messages) {
@@ -58,6 +67,13 @@ export function ChatPage({ userName, onChangeName }: ChatPageProps) {
       <main ref={scrollRef} className={styles.main}>
         <div className={styles.content}>{renderContent()}</div>
       </main>
+
+      <footer className={styles.footer}>
+        <MessageComposer
+          author={userName}
+          onSent={() => setSentCount((count) => count + 1)}
+        />
+      </footer>
     </div>
   )
 }

@@ -21,7 +21,7 @@ export function createQueryClient(): QueryClient {
     defaultOptions: {
       queries: {
         retry: shouldRetry,
-        // A full refetch would replace messages added by polling; revisited with polling.
+        // Not needed: polling fetches new messages as soon as the tab is visible again.
         refetchOnWindowFocus: false,
       },
     },

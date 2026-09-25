@@ -15,6 +15,13 @@ const setup = (props: Partial<Parameters<typeof UserNameForm>[0]> = {}) => {
 }
 
 describe('UserNameForm', () => {
+  it('focuses the name field and describes it with the intro text', () => {
+    const { input } = setup()
+
+    expect(input).toHaveFocus()
+    expect(input).toHaveAccessibleDescription('Choose a name to start chatting.')
+  })
+
   it('shows an error and does not submit an empty name', async () => {
     const { user, onSubmit, input } = setup()
 
@@ -22,7 +29,9 @@ describe('UserNameForm', () => {
 
     expect(screen.getByRole('alert')).toHaveTextContent('Please enter your name.')
     expect(input).toHaveAttribute('aria-invalid', 'true')
-    expect(input).toHaveAccessibleDescription('Please enter your name.')
+    expect(input).toHaveAccessibleDescription(
+      'Choose a name to start chatting. Please enter your name.',
+    )
     expect(input).toHaveFocus()
     expect(onSubmit).not.toHaveBeenCalled()
   })

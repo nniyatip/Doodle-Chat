@@ -10,12 +10,15 @@ interface MessageListProps {
 
 export function MessageList({ messages, currentUserName }: MessageListProps) {
   return (
-    <ol className={styles.list} role="log" aria-label="Messages">
-      {messages.map((message) => (
-        <li key={message._id} className={styles.item}>
-          <MessageBubble message={message} isOwn={message.author === currentUserName} />
-        </li>
-      ))}
-    </ol>
+    // The log role lives on a wrapper: on the <ol> itself it would remove the list semantics.
+    <div role="log" aria-label="Messages">
+      <ol className={styles.list}>
+        {messages.map((message) => (
+          <li key={message._id} className={styles.item}>
+            <MessageBubble message={message} isOwn={message.author === currentUserName} />
+          </li>
+        ))}
+      </ol>
+    </div>
   )
 }

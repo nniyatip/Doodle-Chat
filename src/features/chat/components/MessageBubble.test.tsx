@@ -15,9 +15,10 @@ const message: Message = {
   author: 'Patricia',
   createdAt: new Date(Date.now() - 60 * 1000).toISOString(),
 }
+const time = formatMessageDate(message.createdAt)
 
-const renderBubble = (isOwn: boolean) => {
-  render(<MessageBubble message={message} isOwn={isOwn} />)
+const renderBubble = (isOwn: boolean, overrides: Partial<Message> = {}) => {
+  render(<MessageBubble message={{ ...message, ...overrides }} isOwn={isOwn} />)
   return screen.getByRole('article')
 }
 
@@ -38,12 +39,26 @@ describe('MessageBubble', () => {
     expect(within(bubble).queryByText('Patricia')).not.toBeInTheDocument()
   })
 
+  it.each([
+    [false, `Patricia ${time}`],
+    [true, `You ${time}`],
+  ])('names the article after author and time (own: %s)', (isOwn, name) => {
+    expect(renderBubble(isOwn)).toHaveAccessibleName(name)
+  })
+
   it.each([false, true])('renders the text and time (own: %s)', (isOwn) => {
     const bubble = renderBubble(isOwn)
 
     expect(within(bubble).getByText('Sounds good to me!')).toBeInTheDocument()
-    const time = within(bubble).getByText(formatMessageDate(message.createdAt))
-    expect(time.tagName).toBe('TIME')
-    expect(time).toHaveAttribute('dateTime', message.createdAt)
+    const timeElement = within(bubble).getByText(time)
+    expect(timeElement.tagName).toBe('TIME')
+    expect(timeElement).toHaveAttribute('dateTime', message.createdAt)
+  })
+
+  it('decodes HTML entities in the text but still renders it as plain text', () => {
+    const bubble = renderBubble(false, { message: 'It&#39;s &lt;b&gt;fine&lt;/b&gt;' })
+
+    expect(within(bubble).getByText("It's <b>fine</b>")).toBeInTheDocument()
+    expect(bubble.querySelector('b')).toBeNull()
   })
 })

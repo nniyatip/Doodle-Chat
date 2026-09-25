@@ -1,6 +1,7 @@
-import { memo } from 'react'
+import { memo, useId } from 'react'
 
 import type { Message } from '../../../api/messages.ts'
+import { decodeHtmlEntities } from '../lib/decodeHtmlEntities.ts'
 import { formatMessageDate } from '../lib/formatMessageDate.ts'
 import styles from './MessageBubble.module.css'
 
@@ -15,16 +16,27 @@ export const MessageBubble = memo(function MessageBubble({
   message,
   isOwn,
 }: MessageBubbleProps) {
+  const authorId = useId()
+  const timeId = useId()
+
   return (
-    <article className={isOwn ? `${styles.bubble} ${styles.own}` : styles.bubble}>
+    <article
+      className={isOwn ? `${styles.bubble} ${styles.own}` : styles.bubble}
+      // Named "author + time" for screen-reader article navigation, e.g. "Maddie 22 Sep 2026 15:11".
+      aria-labelledby={`${authorId} ${timeId}`}
+    >
       {isOwn ? (
         // The design hides the author on own messages; screen readers still need it.
-        <p className="visually-hidden">You</p>
+        <p id={authorId} className="visually-hidden">
+          You
+        </p>
       ) : (
-        <p className={styles.author}>{message.author}</p>
+        <p id={authorId} className={styles.author}>
+          {message.author}
+        </p>
       )}
-      <p className={styles.text}>{message.message}</p>
-      <time className={styles.time} dateTime={message.createdAt}>
+      <p className={styles.text}>{decodeHtmlEntities(message.message)}</p>
+      <time id={timeId} className={styles.time} dateTime={message.createdAt}>
         {formatMessageDate(message.createdAt)}
       </time>
     </article>

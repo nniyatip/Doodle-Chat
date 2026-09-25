@@ -2,24 +2,14 @@ import { screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import type { Message } from '../../../api/messages.ts'
+import { jsonResponse, makeMessage } from '../../../test/fixtures.ts'
 import { renderWithQueryClient } from '../../../test/renderWithQueryClient.tsx'
 import { MessageComposer } from './MessageComposer.tsx'
 
 const fetchMock = vi.fn<typeof fetch>()
 
-const jsonResponse = (status: number, body: unknown) =>
-  new Response(JSON.stringify(body), {
-    status,
-    headers: { 'Content-Type': 'application/json' },
-  })
-
-const saved = (message: string): Message => ({
-  _id: crypto.randomUUID(),
-  message,
-  author: 'Nando',
-  createdAt: new Date().toISOString(),
-})
+const saved = (message: string) =>
+  makeMessage({ message, author: 'Nando', createdAt: new Date().toISOString() })
 
 const renderComposer = () => {
   const onSent = vi.fn()
@@ -147,5 +137,38 @@ describe('MessageComposer', () => {
     await user.paste('a'.repeat(490))
 
     expect(screen.getByText('10 characters left')).toBeInTheDocument()
+  })
+
+  it('announces the limit only at a few points, not on every keystroke', async () => {
+    const { user, input } = renderComposer()
+    const announcement = document.querySelector('[aria-live="polite"]')
+    expect(announcement).toHaveClass('visually-hidden')
+    expect(announcement).toBeEmptyDOMElement()
+
+    await user.click(input)
+    await user.paste('a'.repeat(449))
+    expect(announcement).toBeEmptyDOMElement()
+
+    await user.paste('a')
+    expect(announcement).toHaveTextContent('Approaching the 500 character limit')
+    await user.paste('a'.repeat(30))
+    expect(announcement).toHaveTextContent('Approaching the 500 character limit')
+
+    await user.paste('a'.repeat(10))
+    expect(announcement).toHaveTextContent('Nearly at the 500 character limit')
+
+    await user.paste('a'.repeat(10))
+    expect(announcement).toHaveTextContent('Character limit reached')
+    // The visible counter is linked to the input instead of being a live region itself.
+    expect(screen.getByText('0 characters left')).not.toHaveAttribute('aria-live')
+    expect(input).toHaveAccessibleDescription('0 characters left')
+  })
+
+  it('focuses the input on mount only when asked to', () => {
+    renderWithQueryClient(
+      <MessageComposer author="Nando" onSent={vi.fn()} focusOnMount />,
+    )
+
+    expect(screen.getByRole('textbox', { name: 'Message' })).toHaveFocus()
   })
 })

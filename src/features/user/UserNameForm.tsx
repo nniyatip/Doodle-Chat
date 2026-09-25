@@ -1,4 +1,4 @@
-import { useId, useRef, useState, type FormEvent } from 'react'
+import { useEffect, useId, useRef, useState, type FormEvent } from 'react'
 
 import { USER_NAME_MAX_LENGTH, validateUserName } from './userName.ts'
 import styles from './UserNameForm.module.css'
@@ -22,7 +22,13 @@ export function UserNameForm({
   const inputId = useId()
   const errorId = useId()
   const titleId = useId()
+  const introId = useId()
   const isChanging = onCancel !== undefined
+
+  // The form is the only thing on screen, and opening it unmounts the focused button.
+  useEffect(() => {
+    inputRef.current?.focus()
+  }, [])
 
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
@@ -41,7 +47,7 @@ export function UserNameForm({
         <h1 id={titleId} className={styles.title}>
           {isChanging ? 'Change your name' : 'Welcome to Doodle Chat'}
         </h1>
-        <p className={styles.intro}>
+        <p id={introId} className={styles.intro}>
           {isChanging
             ? 'Your new name is used for the messages you send from now on.'
             : 'Choose a name to start chatting.'}
@@ -67,7 +73,8 @@ export function UserNameForm({
             spellCheck={false}
             maxLength={USER_NAME_MAX_LENGTH}
             aria-invalid={error !== null}
-            aria-describedby={error ? errorId : undefined}
+            // The intro gives context that would otherwise be skipped when focus lands here.
+            aria-describedby={error ? `${introId} ${errorId}` : introId}
           />
           {error && (
             <p id={errorId} className={styles.error} role="alert">

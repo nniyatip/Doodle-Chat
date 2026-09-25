@@ -65,4 +65,25 @@ describe('App', () => {
     expect(screen.getByText('Maddie')).toBeInTheDocument()
     expect(localStorage.getItem('doodle-chat:user')).toBe('Maddie')
   })
+
+  it('keeps keyboard focus in a sensible place when switching screens', async () => {
+    const user = userEvent.setup()
+    const { unmount } = renderWithQueryClient(<App />)
+
+    // First visit: straight into the name field, then into the message field.
+    expect(screen.getByLabelText('Your name')).toHaveFocus()
+    await user.type(screen.getByLabelText('Your name'), 'Nando{Enter}')
+    expect(screen.getByRole('textbox', { name: 'Message' })).toHaveFocus()
+
+    // Change name opens the form focused; Cancel returns to the button that opened it.
+    await user.click(screen.getByRole('button', { name: 'Change name' }))
+    expect(screen.getByLabelText('Your name')).toHaveFocus()
+    await user.click(screen.getByRole('button', { name: 'Cancel' }))
+    expect(screen.getByRole('button', { name: 'Change name' })).toHaveFocus()
+
+    // A reload with a saved name doesn't move focus anywhere.
+    unmount()
+    renderWithQueryClient(<App />)
+    expect(document.body).toHaveFocus()
+  })
 })

@@ -22,6 +22,12 @@
   border-radius: var(--radius-sm);
 }
 
+/* The browser default grey (and Firefox's reduced opacity) can fall below 4.5:1. */
+.input::placeholder {
+  color: var(--color-text-muted);
+  opacity: 1;
+}
+
 .input[aria-invalid='true'] {
   border-color: var(--color-danger);
 }

@@ -52,16 +52,21 @@
   text-underline-offset: 2px;
 }
 
-/* Positions the "new messages" button over the bottom of the message area. */
+/* Message area on top, composer bar at the bottom: both belong to the main content. */
+.main,
 .body {
-  position: relative;
   flex: 1;
   min-height: 0;
   display: flex;
   flex-direction: column;
 }
 
-.main {
+/* Positions the "new messages" button over the bottom of the message area. */
+.body {
+  position: relative;
+}
+
+.scroller {
   /* Contains the absolutely positioned .visually-hidden text in messages; without it that
      text escapes this scroll area and makes the whole page scroll too. */
   position: relative;
@@ -73,17 +78,27 @@
   scrollbar-gutter: stable both-edges;
 }
 
+/* Focusable so keyboard users can scroll it; draw the ring inside the area. */
+.scroller:focus-visible {
+  outline-offset: -3px;
+}
+
 .content {
   max-width: var(--content-max-width);
   margin: 0 auto;
   padding: var(--space-6) var(--space-4);
 }
 
-.footer {
+.composerBar {
   flex-shrink: 0;
   padding: var(--space-2) var(--space-4);
   padding-bottom: calc(var(--space-2) + env(safe-area-inset-bottom));
   background: var(--color-primary);
+}
+
+/* The default dark-blue ring is nearly invisible on the blue bar; white passes 3:1. */
+.composerBar :focus-visible {
+  outline-color: var(--color-surface);
 }
 
 /* Light background: small text directly on the blue bar would fail contrast. */
@@ -99,7 +114,7 @@
 
 @media (min-width: 40rem) {
   .content,
-  .footer {
+  .composerBar {
     padding-inline: var(--space-6);
   }
 }

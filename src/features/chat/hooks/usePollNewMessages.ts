@@ -48,8 +48,15 @@ export function usePollNewMessages(enabled: boolean): { isFailing: boolean } {
     }
 
     const onVisibilityChange = () => {
-      if (document.visibilityState === 'hidden') controller?.abort()
-      else void poll()
+      if (document.visibilityState === 'hidden') {
+        // Clear it now, not when the aborted request settles, so coming back straight
+        // away can poll immediately.
+        const request = controller
+        controller = null
+        request?.abort()
+      } else {
+        void poll()
+      }
     }
 
     const intervalId = setInterval(() => void poll(), POLL_INTERVAL_MS)

@@ -58,7 +58,8 @@ export function ChatPage({ userName, onChangeName, initialFocus }: ChatPageProps
           <h1 className={styles.title}>Doodle Chat</h1>
           <div className={styles.userInfo}>
             <p className={styles.user}>
-              Chatting as <strong>{userName}</strong>
+              <span className={styles.userLabel}>Chatting as </span>
+              <strong>{userName}</strong>
             </p>
             <button
               ref={changeNameRef}

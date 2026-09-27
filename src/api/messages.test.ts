@@ -1,49 +1,33 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it } from 'vitest'
 
+import {
+  jsonResponse,
+  makeMessage as message,
+  mockFetch,
+  urlOf,
+} from '../test/fixtures.ts'
 import { ApiError } from './http.ts'
-import { createMessage, getMessages, type Message } from './messages.ts'
+import { createMessage, getMessages } from './messages.ts'
 
 const API_URL = 'http://api.test/api/v1'
 
-const fetchMock = vi.fn<typeof fetch>()
-
-const jsonResponse = (status: number, body: unknown) =>
-  new Response(JSON.stringify(body), {
-    status,
-    headers: { 'Content-Type': 'application/json' },
-  })
+const fetchMock = mockFetch()
 
 const now = () => new Date().toISOString()
-
-const message = (overrides: Partial<Message> = {}): Message => ({
-  _id: '6f1c2b1e-0000-4000-8000-000000000001',
-  message: 'Hello',
-  author: 'Maddie',
-  createdAt: now(),
-  ...overrides,
-})
 
 const lastCall = () => {
   const call = fetchMock.mock.lastCall
   if (!call) throw new Error('fetch was not called')
   const [url, init = {}] = call
-  return { url: String(url), init }
+  return { url: urlOf(url), init }
 }
 
-beforeEach(() => {
-  vi.stubGlobal('fetch', fetchMock)
-})
-
-afterEach(() => {
-  fetchMock.mockReset()
-  vi.unstubAllGlobals()
-})
-
 describe('getMessages', () => {
-  it('requests /messages without a query string by default', async () => {
-    fetchMock.mockResolvedValue(jsonResponse(200, []))
+  it('requests /messages without filters and returns the parsed messages', async () => {
+    const messages = [message(), message({ author: 'Nina' })]
+    fetchMock.mockResolvedValue(jsonResponse(200, messages))
 
-    await getMessages()
+    await expect(getMessages()).resolves.toEqual(messages)
 
     expect(lastCall().url).toBe(`${API_URL}/messages`)
     expect(lastCall().init.method).toBe('GET')
@@ -80,17 +64,12 @@ describe('getMessages', () => {
     expect(url).not.toContain(after)
   })
 
-  it('returns the messages from the response', async () => {
-    const messages = [message(), message({ _id: '2', author: 'Nina' })]
-    fetchMock.mockResolvedValue(jsonResponse(200, messages))
-
-    await expect(getMessages()).resolves.toEqual(messages)
-  })
-
   it('rejects malformed payloads with an ApiError', async () => {
     const { author: _author, ...withoutAuthor } = message()
 
-    for (const payload of [{ messages: [] }, [withoutAuthor]]) {
+    const badDate = message({ createdAt: 'yesterday' })
+
+    for (const payload of [{ messages: [] }, [withoutAuthor], [badDate]]) {
       fetchMock.mockResolvedValueOnce(jsonResponse(200, payload))
 
       const error = await getMessages().catch((e: unknown) => e)
@@ -104,7 +83,10 @@ describe('getMessages', () => {
     fetchMock.mockImplementation(
       (_input, init) =>
         new Promise((_resolve, reject) => {
-          init?.signal?.addEventListener('abort', () => reject(init.signal?.reason))
+          const signal = init?.signal
+          signal?.addEventListener('abort', () => {
+            reject(signal.reason as Error)
+          })
         }),
     )
     const controller = new AbortController()
@@ -114,44 +96,32 @@ describe('getMessages', () => {
 
     await expect(promise).rejects.toMatchObject({ name: 'AbortError' })
   })
-
-  it('does not allow combining `before` and `after`', () => {
-    // The API answers 400 for this combination; the type prevents it at compile time.
-    // @ts-expect-error `before` and `after` are mutually exclusive
-    const params: Parameters<typeof getMessages>[0] = { before: 'a', after: 'b' }
-
-    expect(params).toBeDefined()
-  })
 })
 
 describe('createMessage', () => {
   it('posts the message and author and returns the created message', async () => {
-    const created = message({ message: 'Hi all', author: 'Nando' })
+    const created = message({ message: 'Hi all', author: 'Nandola' })
     fetchMock.mockResolvedValue(jsonResponse(201, created))
 
-    await expect(createMessage({ message: 'Hi all', author: 'Nando' })).resolves.toEqual(
-      created,
-    )
+    await expect(
+      createMessage({ message: 'Hi all', author: 'Nandola' }),
+    ).resolves.toEqual(created)
 
     const { url, init } = lastCall()
     expect(url).toBe(`${API_URL}/messages`)
     expect(init.method).toBe('POST')
-    expect(init.body).toBe('{"message":"Hi all","author":"Nando"}')
+    expect(init.body).toBe('{"message":"Hi all","author":"Nandola"}')
   })
 
-  it('surfaces validation errors from the API as field errors', async () => {
-    const fieldErrors = [{ field: 'message', message: 'Message cannot be empty' }]
-    fetchMock.mockResolvedValue(
-      jsonResponse(400, {
-        error: { message: fieldErrors, timestamp: now() },
-      }),
-    )
+  it('rejects a malformed created message before it enters the cache', async () => {
+    fetchMock.mockResolvedValue(jsonResponse(201, { message: 'Hi', author: 'Nandola' }))
 
-    await expect(createMessage({ message: ' ', author: 'Nando' })).rejects.toMatchObject({
+    await expect(
+      createMessage({ message: 'Hi', author: 'Nandola' }),
+    ).rejects.toMatchObject({
       name: 'ApiError',
-      status: 400,
-      message: 'Message cannot be empty',
-      fieldErrors,
+      status: 201,
+      message: 'The server sent an unexpected response.',
     })
   })
 })

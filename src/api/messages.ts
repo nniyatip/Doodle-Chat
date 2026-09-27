@@ -28,12 +28,14 @@ export type GetMessagesParams = { limit?: number; signal?: AbortSignal } & (
   { before?: string; after?: never } | { after?: string; before?: never }
 )
 
+// A valid `createdAt` matters: messages are sorted by it and polling continues from it.
 const isMessage = (value: unknown): value is Message =>
   isRecord(value) &&
   typeof value._id === 'string' &&
   typeof value.message === 'string' &&
   typeof value.author === 'string' &&
-  typeof value.createdAt === 'string'
+  typeof value.createdAt === 'string' &&
+  !Number.isNaN(Date.parse(value.createdAt))
 
 export async function getMessages({
   before,
@@ -41,7 +43,7 @@ export async function getMessages({
   limit,
   signal,
 }: GetMessagesParams = {}): Promise<Message[]> {
-  const data = await request<unknown>('/messages', {
+  const data = await request('/messages', {
     query: { before, after, limit },
     signal,
   })
@@ -52,14 +54,10 @@ export async function getMessages({
   return data
 }
 
-export async function createMessage(
-  { message, author }: NewMessage,
-  signal?: AbortSignal,
-): Promise<Message> {
-  const data = await request<unknown>('/messages', {
+export async function createMessage({ message, author }: NewMessage): Promise<Message> {
+  const data = await request('/messages', {
     method: 'POST',
     body: { message, author },
-    signal,
   })
 
   if (!isMessage(data)) {

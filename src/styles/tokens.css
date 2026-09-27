@@ -27,14 +27,14 @@
   --space-3: 0.75rem;
   --space-4: 1rem;
   --space-6: 1.5rem;
-  --space-8: 2rem;
 
   /* Layout */
   --content-max-width: 40rem; /* 640px, "maxw = 640" in the tablet mockup */
+  /* 592px: the column that the header, messages and composer share, inside the padding */
+  --column-max-width: calc(var(--content-max-width) - 2 * var(--space-6));
   --bubble-max-width: 26.25rem; /* 420px in the tablet mockup */
   --control-height: 3rem; /* 48px touch target */
   --radius-sm: 0.25rem;
-  --radius-md: 0.5rem;
 
   /* Typography */
   --font-sans:

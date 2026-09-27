@@ -1,18 +1,10 @@
 .container {
-  flex: 1;
-  display: grid;
-  place-items: center;
+  composes: screen from global;
   padding: var(--space-4);
 }
 
 .card {
-  width: 100%;
-  max-width: var(--content-max-width);
-  padding: var(--space-6);
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-sm);
-  box-shadow: var(--shadow-sm);
+  composes: screen-card from global;
 }
 
 .title {
@@ -36,51 +28,27 @@
 }
 
 .input {
-  min-height: var(--control-height);
-  padding: 0 var(--space-3);
-  background: var(--color-surface);
-  border: 2px solid var(--color-primary-dark);
-  border-radius: var(--radius-sm);
-}
-
-.input[aria-invalid='true'] {
-  border-color: var(--color-danger);
+  composes: field-input from global;
 }
 
 .error {
-  padding: var(--space-2) var(--space-3);
-  font-size: var(--text-sm);
-  color: var(--color-danger);
-  background: var(--color-danger-bg);
-  border-radius: var(--radius-sm);
+  composes: field-error from global;
 }
 
 .actions {
   display: flex;
+  flex-wrap: wrap;
   justify-content: flex-end;
   gap: var(--space-2);
   margin-top: var(--space-4);
 }
 
-.primary,
-.secondary {
-  min-height: var(--control-height);
-  padding: 0 var(--space-6);
-  font-weight: 700;
-  border-radius: var(--radius-sm);
-  transition: background-color var(--duration-fast) var(--easing);
-}
-
 .primary {
-  color: var(--color-on-accent);
-  background: var(--color-accent);
-}
-
-.primary:hover {
-  background: var(--color-accent-hover);
+  composes: primary-button from global;
 }
 
 .secondary {
+  composes: button-base from global;
   color: var(--color-primary-dark);
   border: 2px solid var(--color-primary-dark);
 }
@@ -91,6 +59,6 @@
 
 @media (max-width: 30rem) {
   .actions > * {
-    flex: 1;
+    flex: 1 1 6rem;
   }
 }

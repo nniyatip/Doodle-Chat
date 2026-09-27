@@ -1,23 +1,33 @@
-import { useQuery } from '@tanstack/react-query'
+import { queryOptions, useQuery } from '@tanstack/react-query'
 
 import { getMessages, MESSAGES_PAGE_SIZE } from '../../../api/messages.ts'
-import { mergeMessages } from '../lib/mergeMessages.ts'
+import { addFetched, emptyChat, type ChatMessages } from '../lib/chatMessages.ts'
 
-export const messagesQueryKey = ['messages'] as const
+// The API returns the oldest messages when no filter is given. Messages before a far-future
+// date are the latest page, without trusting the device clock.
+const FAR_FUTURE = '9999-12-31T23:59:59.999Z'
 
-// The API returns the oldest messages by default, so the latest page needs `before=now`.
-// "Now" comes from the client clock; the margin keeps a slow clock from hiding the newest
-// messages.
-const CLOCK_SKEW_TOLERANCE_MS = 5 * 60 * 1000
+const messagesQuery = queryOptions({
+  queryKey: ['messages'],
+  queryFn: async ({ signal }) => {
+    const page = await getMessages({
+      before: FAR_FUTURE,
+      limit: MESSAGES_PAGE_SIZE,
+      signal,
+    })
+    return addFetched(emptyChat(), page)
+  },
+  // Polling and sending keep this list current. An automatic refetch (on reconnect or
+  // remount) would replace it with a snapshot that can miss the newest messages.
+  staleTime: Infinity,
+})
 
-/** The latest page of messages, oldest first. */
+/** Typed key: `getQueryData` and `setQueryData` return and take `ChatMessages`. */
+export const messagesQueryKey = messagesQuery.queryKey
+
+const selectMessages = (chat: ChatMessages) => chat.messages
+
+/** Every message loaded so far, oldest first. */
 export function useMessages() {
-  return useQuery({
-    queryKey: messagesQueryKey,
-    queryFn: async ({ signal }) => {
-      const before = new Date(Date.now() + CLOCK_SKEW_TOLERANCE_MS).toISOString()
-      const messages = await getMessages({ before, limit: MESSAGES_PAGE_SIZE, signal })
-      return mergeMessages([], messages)
-    },
-  })
+  return useQuery({ ...messagesQuery, select: selectMessages })
 }

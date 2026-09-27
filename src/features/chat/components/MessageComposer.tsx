@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, useState, type FormEvent } from 'react'
+import { useEffect, useId, useRef, useState, type SubmitEvent } from 'react'
 
 import { MESSAGE_MAX_LENGTH } from '../../../api/messages.ts'
 import { useSendMessage } from '../hooks/useSendMessage.ts'
@@ -7,6 +7,11 @@ import styles from './MessageComposer.module.css'
 /** The "characters left" counter appears this close to the limit. */
 const COUNTER_THRESHOLD = 50
 const NEARLY_AT_LIMIT = 10
+
+// A request that timed out may still have been saved (the API keeps working after the
+// client gives up). Polling shows it if so; sending again would post it twice.
+const SEND_TIMEOUT_MESSAGE =
+  'The server took too long to respond, so your message may have been sent. Check the chat before sending it again.'
 
 /**
  * What the screen-reader live region says. It changes only at a few points, so typing near
@@ -50,17 +55,18 @@ export function MessageComposer({
   const describedBy =
     [error && errorId, showCounter && counterId].filter(Boolean).join(' ') || undefined
 
-  const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
+  const handleSubmit = (event: SubmitEvent<HTMLFormElement>) => {
     event.preventDefault()
     const message = text.trim()
     if (isPending || !message) return
 
+    // Keep the draft until the server confirms it, so a failed send cannot lose it.
+    inputRef.current?.focus()
     mutate(
       { message, author },
       {
         onSuccess: () => {
           setText('')
-          inputRef.current?.focus()
           onSent()
         },
       },
@@ -76,7 +82,7 @@ export function MessageComposer({
     >
       {error && (
         <p id={errorId} className={styles.error} role="alert">
-          {error.message}
+          {error.status === 408 ? SEND_TIMEOUT_MESSAGE : error.message}
         </p>
       )}
       <div className={styles.row}>
@@ -91,12 +97,11 @@ export function MessageComposer({
           name="message"
           placeholder="Message"
           value={text}
+          readOnly={isPending}
           onChange={(event) => {
             setText(event.target.value)
             if (error) reset()
           }}
-          // readOnly, not disabled: disabled fields lose keyboard focus.
-          readOnly={isPending}
           maxLength={MESSAGE_MAX_LENGTH}
           autoComplete="off"
           enterKeyHint="send"

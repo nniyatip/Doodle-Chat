@@ -1,13 +1,19 @@
-const NAMED_ENTITIES: Record<string, string> = {
-  amp: '&',
-  lt: '<',
-  gt: '>',
-  quot: '"',
-  apos: "'",
-}
+const NAMED_ENTITIES = new Map([
+  ['amp', '&'],
+  ['lt', '<'],
+  ['gt', '>'],
+  ['quot', '"'],
+  ['apos', "'"],
+])
 
 const ENTITY = /&(?:#(\d+)|#x([\da-f]+)|([a-z]+));/gi
-const MAX_CODE_POINT = 0x10ffff
+
+/** Real characters only: no control characters (except whitespace) or lone surrogates. */
+const isPrintable = (codePoint: number) =>
+  codePoint <= 0x10ffff &&
+  (codePoint >= 0x20 || codePoint === 0x09 || codePoint === 0x0a || codePoint === 0x0d) &&
+  (codePoint < 0x7f || codePoint > 0x9f) &&
+  (codePoint < 0xd800 || codePoint > 0xdfff)
 
 /**
  * Turns HTML entities such as `&#39;` back into the characters they stand for (some stored
@@ -24,12 +30,10 @@ export function decodeHtmlEntities(text: string): string {
       hex: string | undefined,
       name: string | undefined,
     ) => {
-      if (name !== undefined) return NAMED_ENTITIES[name.toLowerCase()] ?? entity
+      if (name !== undefined) return NAMED_ENTITIES.get(name.toLowerCase()) ?? entity
       const codePoint =
         decimal !== undefined ? Number(decimal) : Number.parseInt(hex ?? '', 16)
-      return codePoint > 0 && codePoint <= MAX_CODE_POINT
-        ? String.fromCodePoint(codePoint)
-        : entity
+      return isPrintable(codePoint) ? String.fromCodePoint(codePoint) : entity
     },
   )
 }

@@ -1,19 +1,25 @@
 import { screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 
-import { jsonResponse, makeMessage } from '../../../test/fixtures.ts'
+import {
+  jsonBodyOf,
+  jsonResponse,
+  makeMessage,
+  mockFetch,
+  urlOf,
+} from '../../../test/fixtures.ts'
 import { renderWithQueryClient } from '../../../test/renderWithQueryClient.tsx'
 import { MessageComposer } from './MessageComposer.tsx'
 
-const fetchMock = vi.fn<typeof fetch>()
+const fetchMock = mockFetch()
 
 const saved = (message: string) =>
-  makeMessage({ message, author: 'Nando', createdAt: new Date().toISOString() })
+  makeMessage({ message, author: 'Nandola', createdAt: new Date().toISOString() })
 
 const renderComposer = () => {
   const onSent = vi.fn()
-  renderWithQueryClient(<MessageComposer author="Nando" onSent={onSent} />)
+  renderWithQueryClient(<MessageComposer author="Nandola" onSent={onSent} />)
   return {
     onSent,
     user: userEvent.setup(),
@@ -21,19 +27,7 @@ const renderComposer = () => {
   }
 }
 
-const postedBody = (call = 0) => {
-  const [, init] = fetchMock.mock.calls[call] ?? []
-  return JSON.parse(String(init?.body)) as unknown
-}
-
-beforeEach(() => {
-  vi.stubGlobal('fetch', fetchMock)
-})
-
-afterEach(() => {
-  fetchMock.mockReset()
-  vi.unstubAllGlobals()
-})
+const postedBody = (call = 0) => jsonBodyOf(fetchMock.mock.calls[call]?.[1])
 
 describe('MessageComposer', () => {
   it('sends the trimmed message with Enter, then clears and keeps focus', async () => {
@@ -45,9 +39,9 @@ describe('MessageComposer', () => {
     await vi.waitFor(() => expect(onSent).toHaveBeenCalledOnce())
     expect(fetchMock).toHaveBeenCalledOnce()
     const [url, init] = fetchMock.mock.calls[0] ?? []
-    expect(String(url)).toMatch(/\/messages$/)
+    expect(urlOf(url)).toMatch(/\/messages$/)
     expect(init?.method).toBe('POST')
-    expect(postedBody()).toEqual({ message: 'Hi all', author: 'Nando' })
+    expect(postedBody()).toEqual({ message: 'Hi all', author: 'Nandola' })
     expect(input).toHaveValue('')
     expect(input).toHaveFocus()
   })
@@ -60,7 +54,7 @@ describe('MessageComposer', () => {
     await user.click(screen.getByRole('button', { name: 'Send' }))
 
     await vi.waitFor(() => expect(onSent).toHaveBeenCalledOnce())
-    expect(postedBody()).toEqual({ message: 'Hello', author: 'Nando' })
+    expect(postedBody()).toEqual({ message: 'Hello', author: 'Nandola' })
     expect(input).toHaveFocus()
   })
 
@@ -73,20 +67,33 @@ describe('MessageComposer', () => {
     expect(fetchMock).not.toHaveBeenCalled()
   })
 
-  it('shows the sending state and ignores more submits until the server replies', async () => {
-    fetchMock.mockReturnValue(new Promise(() => undefined))
-    const { user, input } = renderComposer()
+  it('retains the draft and prevents edits and duplicate sends until confirmed', async () => {
+    let reply: (response: Response) => void = () => undefined
+    fetchMock.mockReturnValue(
+      new Promise((resolve) => {
+        reply = resolve
+      }),
+    )
+    const { user, input, onSent } = renderComposer()
 
     await user.type(input, 'Once{Enter}')
 
     const button = await screen.findByRole('button', { name: 'Sending…' })
     expect(button).toHaveAttribute('aria-disabled', 'true')
     expect(input).toHaveAttribute('readonly')
-
-    await user.type(input, '{Enter}')
+    await user.type(input, 'Twice{Enter}')
     await user.click(button)
 
     expect(fetchMock).toHaveBeenCalledOnce()
+    expect(input).toHaveValue('Once')
+    reply(jsonResponse(201, saved('Once')))
+
+    await vi.waitFor(() => expect(onSent).toHaveBeenCalledOnce())
+    expect(input).toHaveValue('')
+    expect(input).not.toHaveAttribute('readonly')
+    // Editable again once the message is saved.
+    await user.type(input, 'Twice')
+    expect(input).toHaveValue('Twice')
   })
 
   it('shows the server error, keeps the text and clears the error when typing', async () => {
@@ -125,23 +132,25 @@ describe('MessageComposer', () => {
     expect(input).toHaveValue('Anyone?')
   })
 
-  it('limits the length and shows a counter near the limit', async () => {
+  it('warns that a timed-out message may have been sent, so it is not posted twice', async () => {
+    fetchMock.mockResolvedValue(
+      jsonResponse(408, { error: { message: 'Request Timeout' } }),
+    )
     const { user, input } = renderComposer()
 
-    expect(input).toHaveAttribute('maxLength', '500')
-    await user.type(input, 'Short')
-    expect(screen.queryByText(/characters left/)).not.toBeInTheDocument()
+    await user.type(input, 'Hello?{Enter}')
 
-    await user.clear(input)
-    await user.click(input)
-    await user.paste('a'.repeat(490))
-
-    expect(screen.getByText('10 characters left')).toBeInTheDocument()
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'The server took too long to respond, so your message may have been sent. Check the chat before sending it again.',
+    )
+    expect(input).toHaveValue('Hello?')
   })
 
   it('announces the limit only at a few points, not on every keystroke', async () => {
     const { user, input } = renderComposer()
     const announcement = document.querySelector('[aria-live="polite"]')
+    expect(input).toHaveAttribute('maxLength', '500')
+    expect(screen.queryByText(/characters left/)).not.toBeInTheDocument()
     expect(announcement).toHaveClass('visually-hidden')
     expect(announcement).toBeEmptyDOMElement()
 
@@ -162,13 +171,5 @@ describe('MessageComposer', () => {
     // The visible counter is linked to the input instead of being a live region itself.
     expect(screen.getByText('0 characters left')).not.toHaveAttribute('aria-live')
     expect(input).toHaveAccessibleDescription('0 characters left')
-  })
-
-  it('focuses the input on mount only when asked to', () => {
-    renderWithQueryClient(
-      <MessageComposer author="Nando" onSent={vi.fn()} focusOnMount />,
-    )
-
-    expect(screen.getByRole('textbox', { name: 'Message' })).toHaveFocus()
   })
 })

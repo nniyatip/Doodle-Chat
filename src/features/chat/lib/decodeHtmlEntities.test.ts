@@ -16,10 +16,17 @@ describe('decodeHtmlEntities', () => {
   })
 
   it('leaves unknown, invalid and incomplete entities untouched', () => {
-    expect(decodeHtmlEntities('&nbsp; &copy;')).toBe('&nbsp; &copy;')
+    expect(decodeHtmlEntities('&nbsp; &copy; &constructor;')).toBe(
+      '&nbsp; &copy; &constructor;',
+    )
     expect(decodeHtmlEntities('&#0; &#x110000; &#99999999;')).toBe(
       '&#0; &#x110000; &#99999999;',
     )
+    // Control characters and lone surrogates would be invisible or broken text.
+    expect(decodeHtmlEntities('&#1; &#x7F; &#x85; &#xD800;')).toBe(
+      '&#1; &#x7F; &#x85; &#xD800;',
+    )
+    expect(decodeHtmlEntities('a&#10;b')).toBe('a\nb')
     expect(decodeHtmlEntities('Fish & chips &amp')).toBe('Fish & chips &amp')
   })
 

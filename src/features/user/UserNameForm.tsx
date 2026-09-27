@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, useState, type FormEvent } from 'react'
+import { useEffect, useId, useRef, useState, type SubmitEvent } from 'react'
 
 import { USER_NAME_MAX_LENGTH, validateUserName } from './userName.ts'
 import styles from './UserNameForm.module.css'
@@ -30,7 +30,7 @@ export function UserNameForm({
     inputRef.current?.focus()
   }, [])
 
-  const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
+  const handleSubmit = (event: SubmitEvent<HTMLFormElement>) => {
     event.preventDefault()
     const result = validateUserName(name)
     if (!result.ok) {

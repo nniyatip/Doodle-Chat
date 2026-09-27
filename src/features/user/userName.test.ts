@@ -4,7 +4,7 @@ import { USER_NAME_MAX_LENGTH, validateUserName } from './userName.ts'
 
 describe('validateUserName', () => {
   it('trims and accepts a normal name', () => {
-    expect(validateUserName('  Nando  ')).toEqual({ ok: true, value: 'Nando' })
+    expect(validateUserName('  Nandola  ')).toEqual({ ok: true, value: 'Nandola' })
   })
 
   it('accepts digits, spaces, hyphens and underscores', () => {
@@ -32,13 +32,13 @@ describe('validateUserName', () => {
   })
 
   it('rejects characters the API rejects', () => {
-    for (const raw of ['Nando!', 'José', '<b>', 'a.b']) {
+    for (const raw of ['Nandola!', 'José', '<b>', 'a.b']) {
       expect(validateUserName(raw)).toMatchObject({ ok: false })
     }
   })
 
   it('allows plain spaces only, not tabs, newlines or non-breaking spaces', () => {
-    for (const raw of ['Nando\tMaddie', 'Nando\nMaddie', 'Nando\u00a0Maddie']) {
+    for (const raw of ['Nandola\tMaddie', 'Nandola\nMaddie', 'Nandola\u00a0Maddie']) {
       expect(validateUserName(raw)).toMatchObject({ ok: false })
     }
   })
@@ -50,6 +50,6 @@ describe('validateUserName', () => {
         error: 'Your name needs at least one letter or number.',
       })
     }
-    expect(validateUserName('_Nando_').ok).toBe(true)
+    expect(validateUserName('_Nandola_').ok).toBe(true)
   })
 })

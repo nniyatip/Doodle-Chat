@@ -1,7 +1,8 @@
 import { useEffect, useRef } from 'react'
 
+import { isTransientError } from '../../api/http.ts'
 import styles from './ChatPage.module.css'
-import { ChatEmpty, ChatError, ChatLoading } from './components/ChatStatus.tsx'
+import { ChatError, ChatLoading } from './components/ChatStatus.tsx'
 import { MessageComposer } from './components/MessageComposer.tsx'
 import { MessageList } from './components/MessageList.tsx'
 import { NewMessagesButton } from './components/NewMessagesButton.tsx'
@@ -21,7 +22,7 @@ interface ChatPageProps {
 
 export function ChatPage({ userName, onChangeName, initialFocus }: ChatPageProps) {
   const { data: messages, error, isFetching, refetch } = useMessages()
-  const { isFailing } = usePollNewMessages(messages !== undefined)
+  const { error: pollError } = usePollNewMessages(messages !== undefined)
   const scrollRef = useRef<HTMLDivElement>(null)
   const changeNameRef = useRef<HTMLButtonElement>(null)
   const { unseenCount, onScroll, scrollToLatest } = useChatScroll(
@@ -41,13 +42,7 @@ export function ChatPage({ userName, onChangeName, initialFocus }: ChatPageProps
   }
 
   const renderContent = () => {
-    if (messages) {
-      return messages.length > 0 ? (
-        <MessageList messages={messages} currentUserName={userName} />
-      ) : (
-        <ChatEmpty />
-      )
-    }
+    if (messages) return <MessageList messages={messages} currentUserName={userName} />
     if (error) {
       return (
         <ChatError error={error} onRetry={() => void refetch()} isRetrying={isFetching} />
@@ -96,9 +91,11 @@ export function ChatPage({ userName, onChangeName, initialFocus }: ChatPageProps
         </div>
 
         <div className={styles.composerBar}>
-          {isFailing && (
+          {pollError && (
             <p className={styles.notice} role="status">
-              Connection problem. New messages may be delayed – retrying…
+              {isTransientError(pollError)
+                ? 'Connection problem. New messages may be delayed – retrying…'
+                : `New messages can't be loaded. ${pollError.message}`}
             </p>
           )}
           <MessageComposer

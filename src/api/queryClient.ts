@@ -1,6 +1,6 @@
 import { QueryClient } from '@tanstack/react-query'
 
-import { ApiError } from './http.ts'
+import { isTransientError } from './http.ts'
 
 const MAX_RETRIES = 2
 
@@ -11,19 +11,16 @@ const MAX_RETRIES = 2
  * request or a bug, and retrying it would only delay the error.
  */
 export function shouldRetry(failureCount: number, error: unknown): boolean {
-  if (failureCount >= MAX_RETRIES) return false
-  if (!(error instanceof ApiError)) return false
-  return error.status === 0 || error.status === 408 || error.status >= 500
+  return failureCount < MAX_RETRIES && isTransientError(error)
 }
 
 export function createQueryClient(): QueryClient {
+  // By default TanStack Query holds requests back while the browser reports being offline,
+  // which left the chat loading (or "Sending…") forever. Trying anyway shows a real error.
   return new QueryClient({
     defaultOptions: {
-      queries: {
-        retry: shouldRetry,
-        // Not needed: polling fetches new messages as soon as the tab is visible again.
-        refetchOnWindowFocus: false,
-      },
+      queries: { retry: shouldRetry, networkMode: 'always' },
+      mutations: { networkMode: 'always' },
     },
   })
 }

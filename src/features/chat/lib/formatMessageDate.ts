@@ -20,6 +20,7 @@ export function formatMessageDate(iso: string): string {
   const date = new Date(iso)
   if (Number.isNaN(date.getTime())) return iso
 
+  const month = MONTHS[date.getMonth()] ?? ''
   const minutes = String(date.getMinutes()).padStart(2, '0')
-  return `${date.getDate()} ${MONTHS[date.getMonth()]} ${date.getFullYear()} ${date.getHours()}:${minutes}`
+  return `${date.getDate()} ${month} ${date.getFullYear()} ${date.getHours()}:${minutes}`
 }

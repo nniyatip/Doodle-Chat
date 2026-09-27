@@ -1,9 +1,15 @@
 /* Full-height column: only the message area scrolls, so the header and the composer
-   always stay visible. */
+   stay visible. When enlarged text leaves too little room, the page scrolls instead. */
 .page {
   display: flex;
   flex-direction: column;
   height: 100dvh;
+}
+
+.header,
+.composerBar {
+  overflow: hidden;
+  scrollbar-gutter: stable;
 }
 
 .header {
@@ -18,7 +24,7 @@
   flex-wrap: wrap;
   align-items: center;
   gap: var(--space-2) var(--space-4);
-  max-width: var(--content-max-width);
+  max-width: var(--column-max-width);
   margin: 0 auto;
 }
 
@@ -29,6 +35,7 @@
 
 .userInfo {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: var(--space-2);
 }
@@ -64,6 +71,7 @@
 /* Positions the "new messages" button over the bottom of the message area. */
 .body {
   position: relative;
+  min-height: 8rem;
 }
 
 .scroller {
@@ -73,9 +81,8 @@
   flex: 1;
   min-height: 0;
   overflow-y: auto;
-  overscroll-behavior: contain;
-  /* Keeps the column centred like the (scrollbar-free) composer on desktop browsers. */
-  scrollbar-gutter: stable both-edges;
+  overscroll-behavior: contain auto;
+  scrollbar-gutter: stable;
 }
 
 /* Focusable so keyboard users can scroll it; draw the ring inside the area. */
@@ -86,12 +93,12 @@
 .content {
   max-width: var(--content-max-width);
   margin: 0 auto;
-  padding: var(--space-6) var(--space-4);
+  padding: var(--space-4) var(--space-6);
 }
 
 .composerBar {
   flex-shrink: 0;
-  padding: var(--space-2) var(--space-4);
+  padding: var(--space-2);
   padding-bottom: calc(var(--space-2) + env(safe-area-inset-bottom));
   background: var(--color-primary);
 }
@@ -103,7 +110,7 @@
 
 /* Light background: small text directly on the blue bar would fail contrast. */
 .notice {
-  max-width: calc(var(--content-max-width) - 2 * var(--space-6));
+  max-width: var(--column-max-width);
   margin: 0 auto var(--space-2);
   padding: var(--space-2) var(--space-3);
   font-size: var(--text-sm);
@@ -113,8 +120,15 @@
 }
 
 @media (min-width: 40rem) {
-  .content,
+  .header,
   .composerBar {
     padding-inline: var(--space-6);
+  }
+
+  /* Keeps the header, messages and composer aligned on browsers with classic scrollbars. */
+  .header,
+  .scroller,
+  .composerBar {
+    scrollbar-gutter: stable both-edges;
   }
 }

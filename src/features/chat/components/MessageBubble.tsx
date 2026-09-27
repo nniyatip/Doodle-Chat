@@ -21,7 +21,7 @@ export const MessageBubble = memo(function MessageBubble({
 
   return (
     <article
-      className={isOwn ? `${styles.bubble} ${styles.own}` : styles.bubble}
+      className={isOwn ? [styles.bubble, styles.own].join(' ') : styles.bubble}
       // Named "author + time" for screen-reader article navigation, e.g. "Maddie 22 Sep 2026 15:11".
       aria-labelledby={`${authorId} ${timeId}`}
     >

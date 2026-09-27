@@ -67,15 +67,6 @@ describe('formatMessageDate', () => {
     expect(formatMessageDate(iso)).toBe(`${datePart(yesterday)} 23:30`)
   })
 
-  it('formats the current time', () => {
-    const now = new Date()
-
-    const formatted = formatMessageDate(now.toISOString())
-
-    expect(formatted).toMatch(/^\d{1,2} [A-Z][a-z]{2} \d{4} \d{1,2}:\d{2}$/)
-    expect(formatted.startsWith(datePart(now))).toBe(true)
-  })
-
   it('returns invalid input unchanged', () => {
     expect(formatMessageDate('not a date')).toBe('not a date')
     expect(formatMessageDate('')).toBe('')

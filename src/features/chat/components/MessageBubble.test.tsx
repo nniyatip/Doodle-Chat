@@ -23,37 +23,26 @@ const renderBubble = (isOwn: boolean, overrides: Partial<Message> = {}) => {
 }
 
 describe('MessageBubble', () => {
-  it("shows the author on other people's messages", () => {
-    const bubble = renderBubble(false)
-
-    expect(within(bubble).getByText('Patricia')).toBeVisible()
-    expect(within(bubble).queryByText('You')).not.toBeInTheDocument()
-    expect(bubble).not.toHaveClass(ownClass)
-  })
-
-  it('marks own messages and replaces the author with a hidden "You"', () => {
-    const bubble = renderBubble(true)
-
-    expect(bubble).toHaveClass(ownClass)
-    expect(within(bubble).getByText('You')).toHaveClass('visually-hidden')
-    expect(within(bubble).queryByText('Patricia')).not.toBeInTheDocument()
-  })
-
   it.each([
-    [false, `Patricia ${time}`],
-    [true, `You ${time}`],
-  ])('names the article after author and time (own: %s)', (isOwn, name) => {
-    expect(renderBubble(isOwn)).toHaveAccessibleName(name)
-  })
+    // The design hides the author on own messages; screen readers still hear "You".
+    { isOwn: false, author: 'Patricia', absent: 'You', authorHidden: false },
+    { isOwn: true, author: 'You', absent: 'Patricia', authorHidden: true },
+  ])(
+    'renders text, time and author (own: $isOwn)',
+    ({ isOwn, author, absent, authorHidden }) => {
+      const bubble = renderBubble(isOwn)
 
-  it.each([false, true])('renders the text and time (own: %s)', (isOwn) => {
-    const bubble = renderBubble(isOwn)
-
-    expect(within(bubble).getByText('Sounds good to me!')).toBeInTheDocument()
-    const timeElement = within(bubble).getByText(time)
-    expect(timeElement.tagName).toBe('TIME')
-    expect(timeElement).toHaveAttribute('dateTime', message.createdAt)
-  })
+      expect(bubble).toHaveAccessibleName(`${author} ${time}`)
+      expect(bubble.classList.contains(ownClass)).toBe(isOwn)
+      expect(within(bubble).getByText('Sounds good to me!')).toBeInTheDocument()
+      const timeElement = within(bubble).getByText(time)
+      expect(timeElement.tagName).toBe('TIME')
+      expect(timeElement).toHaveAttribute('dateTime', message.createdAt)
+      const authorElement = within(bubble).getByText(author)
+      expect(authorElement.classList.contains('visually-hidden')).toBe(authorHidden)
+      expect(within(bubble).queryByText(absent)).not.toBeInTheDocument()
+    },
+  )
 
   it('decodes HTML entities in the text but still renders it as plain text', () => {
     const bubble = renderBubble(false, { message: 'It&#39;s &lt;b&gt;fine&lt;/b&gt;' })

@@ -1,4 +1,5 @@
 @import './tokens.css';
+@import './ui.css';
 
 *,
 *::before,
@@ -12,18 +13,18 @@
 
 html {
   color-scheme: light;
+  overscroll-behavior-y: contain;
   -webkit-text-size-adjust: 100%;
   text-size-adjust: 100%;
 }
 
 body {
-  min-height: 100dvh;
   font-family: var(--font-sans);
   font-size: var(--text-base);
   line-height: var(--leading-normal);
   color: var(--color-text);
   background-color: var(--color-bg);
-  /* 690x850 seamless tile generated from "Body BG.png" by scripts/optimize-bg.js, shown at 2x. */
+  /* 690x850 seamless tile cut from the challenge's "Body BG.png", shown at 2x for sharpness. */
   background-image: url('../assets/bg-pattern.webp');
   background-size: 345px 425px;
   -webkit-font-smoothing: antialiased;
@@ -35,15 +36,8 @@ body {
   flex-direction: column;
 }
 
-img,
-svg {
-  display: block;
-  max-width: 100%;
-}
-
 input,
-button,
-textarea {
+button {
   font: inherit;
   color: inherit;
 }
@@ -72,6 +66,7 @@ p {
   margin: -1px;
   overflow: hidden;
   clip: rect(0 0 0 0);
+  clip-path: inset(50%);
   white-space: nowrap;
   border: 0;
 }

@@ -1,50 +1,49 @@
+import { onlineManager } from '@tanstack/react-query'
 import { act, fireEvent, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { Message } from '../../api/messages.ts'
-import { jsonResponse, makeMessage as message, minutesAgo } from '../../test/fixtures.ts'
+import {
+  jsonResponse,
+  makeMessage as message,
+  minutesAgo,
+  mockFetch,
+  urlOf,
+} from '../../test/fixtures.ts'
 import { renderWithQueryClient } from '../../test/renderWithQueryClient.tsx'
+import { resize } from '../../test/resizeObserver.ts'
 import { ChatPage } from './ChatPage.tsx'
-import { POLL_INTERVAL_MS } from './hooks/usePollNewMessages.ts'
+import { POLL_INTERVAL_MS, POLL_OVERLAP_MS } from './hooks/usePollNewMessages.ts'
 
-const fetchMock = vi.fn<typeof fetch>()
-
-beforeEach(() => {
-  vi.stubGlobal('fetch', fetchMock)
-})
-
-afterEach(() => {
-  fetchMock.mockReset()
-  vi.unstubAllGlobals()
-})
+const fetchMock = mockFetch()
 
 describe('ChatPage live updates', () => {
   let visibility: DocumentVisibilityState = 'visible'
 
   const pollOnce = () => act(() => vi.advanceTimersByTimeAsync(POLL_INTERVAL_MS))
   const requestUrl = (call: number) =>
-    new URL(String(fetchMock.mock.calls[call]?.[0])).searchParams
+    new URL(urlOf(fetchMock.mock.calls[call]?.[0])).searchParams
+
+  type PollReply = Message[] | Error | Response | 'pending'
 
   /** First load returns `initial`; each later request gets the next reply, then `[]`. */
-  const replyWith = (initial: Message[], ...polls: (Message[] | Error | 'pending')[]) => {
+  const replyWith = (initial: Message[], ...polls: PollReply[]) => {
     fetchMock.mockImplementationOnce(async () => jsonResponse(200, initial))
     for (const reply of polls) {
       fetchMock.mockImplementationOnce(async () => {
         if (reply === 'pending') return new Promise<never>(() => undefined)
         if (reply instanceof Error) throw reply
+        if (reply instanceof Response) return reply
         return jsonResponse(200, reply)
       })
     }
     fetchMock.mockImplementation(async () => jsonResponse(200, []))
   }
 
-  const renderLive = async (
-    initial: Message[],
-    ...polls: (Message[] | Error | 'pending')[]
-  ) => {
+  const renderLive = async (initial: Message[], ...polls: PollReply[]) => {
     replyWith(initial, ...polls)
     const result = renderWithQueryClient(
-      <ChatPage userName="Nando" onChangeName={vi.fn()} />,
+      <ChatPage userName="Nandola" onChangeName={vi.fn()} />,
     )
     await (initial.length
       ? screen.findByRole('log', { name: 'Messages' })
@@ -67,6 +66,7 @@ describe('ChatPage live updates', () => {
         },
       },
     })
+    resize()
     return {
       main,
       scrollTo: (value: number) => {
@@ -75,6 +75,12 @@ describe('ChatPage live updates', () => {
       },
       growBy: (pixels: number) => {
         scrollHeight += pixels
+      },
+      /** E.g. the on-screen keyboard opened or an error appeared above the composer. */
+      shrinkViewBy: (pixels: number) => {
+        clientHeight -= pixels
+        fireEvent.scroll(main)
+        resize()
       },
       get scrollTop() {
         return scrollTop
@@ -99,7 +105,7 @@ describe('ChatPage live updates', () => {
     Reflect.deleteProperty(document, 'visibilityState')
   })
 
-  it('polls for messages newer than the newest one shown and appends them', async () => {
+  it('polls for messages newer than the newest one fetched and appends them', async () => {
     const older = message({ message: 'First', createdAt: minutesAgo(10) })
     const newest = message({ message: 'Second', createdAt: minutesAgo(2) })
     const incoming = message({
@@ -112,7 +118,10 @@ describe('ChatPage live updates', () => {
     await pollOnce()
 
     const params = requestUrl(1)
-    expect(params.get('after')).toBe(newest.createdAt)
+    // A few seconds early, so late-saved messages aren't missed; see `pollAfter`.
+    expect(params.get('after')).toBe(
+      new Date(Date.parse(newest.createdAt) - POLL_OVERLAP_MS).toISOString(),
+    )
     expect(params.get('limit')).toBe('50')
     expect(params.has('before')).toBe(false)
     const items = await screen.findAllByRole('listitem')
@@ -120,15 +129,16 @@ describe('ChatPage live updates', () => {
     expect(items[2]).toHaveTextContent('Fresh')
   })
 
-  it('does not duplicate messages that are already shown', async () => {
-    const known = message({ message: 'Only once' })
-    await renderLive([known], [{ ...known }], [])
+  it('keeps the live list when the connection comes back, instead of reloading it', async () => {
+    await renderLive([message()])
 
-    await pollOnce()
-    await pollOnce()
+    await act(async () => {
+      onlineManager.setOnline(false)
+      onlineManager.setOnline(true)
+    })
+    await act(() => vi.advanceTimersByTimeAsync(100))
 
-    expect(screen.getAllByText('Only once')).toHaveLength(1)
-    expect(fetchMock).toHaveBeenCalledTimes(3)
+    expect(fetchMock).toHaveBeenCalledOnce()
   })
 
   it('pauses while the tab is hidden and catches up as soon as it is visible', async () => {
@@ -195,6 +205,24 @@ describe('ChatPage live updates', () => {
     expect(screen.queryByRole('status')).not.toBeInTheDocument()
   })
 
+  it('explains straight away when retrying cannot help, e.g. a wrong token', async () => {
+    await renderLive(
+      [message({ message: 'Still here' })],
+      jsonResponse(401, {
+        message: 'Invalid token',
+        statusCode: 401,
+        error: 'Unauthorized',
+      }),
+    )
+
+    await pollOnce()
+
+    expect(await screen.findByRole('status')).toHaveTextContent(
+      "New messages can't be loaded. Not authorised. Check VITE_API_TOKEN in your .env file.",
+    )
+    expect(screen.getByText('Still here')).toBeInTheDocument()
+  })
+
   it('cancels the running poll and stops polling when unmounted', async () => {
     const { unmount } = await renderLive([message()], 'pending')
     await pollOnce()
@@ -230,9 +258,31 @@ describe('ChatPage live updates', () => {
     expect(screen.queryByRole('button', { name: /new message/ })).not.toBeInTheDocument()
   })
 
-  it('leaves the view alone when scrolled up and offers a button to jump down', async () => {
-    const reply = (text: string) => [message({ message: text, createdAt: minutesAgo(0) })]
-    await renderLive([message()], reply('One'), reply('Two'))
+  it('stays at the bottom when a message arrives just above your newest one', async () => {
+    const mine = message({ author: 'Nandola', message: 'Mine', createdAt: minutesAgo(1) })
+    // Posted before yours, but only fetched after it: it goes above yours, not at the end.
+    const earlier = message({
+      author: 'Nina',
+      message: 'Earlier',
+      createdAt: minutesAgo(2),
+    })
+    await renderLive([message({ createdAt: minutesAgo(5) }), mine], [earlier])
+    const area = stubScrollArea()
+    area.scrollTo(area.bottom - 500)
+    area.growBy(120)
+
+    await pollOnce()
+    await screen.findByText('Earlier')
+
+    expect(area.scrollTop).toBe(area.bottom)
+  })
+
+  it('counts late and newer arrivals while scrolled up and offers a button to jump down', async () => {
+    await renderLive(
+      [message({ createdAt: minutesAgo(1) })],
+      [message({ message: 'One', createdAt: minutesAgo(2) })],
+      [message({ message: 'Two', createdAt: minutesAgo(0) })],
+    )
     const area = stubScrollArea()
     area.scrollTo(100)
 
@@ -252,6 +302,26 @@ describe('ChatPage live updates', () => {
     expect(screen.queryByRole('button', { name: /new message/ })).not.toBeInTheDocument()
   })
 
+  it('keeps the newest message in view when resizing fires scroll before ResizeObserver', async () => {
+    await renderLive([message()])
+    const area = stubScrollArea()
+    area.scrollTo(area.bottom - 500)
+
+    area.shrinkViewBy(200)
+
+    expect(area.scrollTop).toBe(area.bottom)
+  })
+
+  it('leaves the view alone when the history gets shorter while reading older messages', async () => {
+    await renderLive([message()])
+    const area = stubScrollArea()
+    area.scrollTo(100)
+
+    area.shrinkViewBy(200)
+
+    expect(area.scrollTop).toBe(100)
+  })
+
   it('hides the button when the user scrolls back to the bottom', async () => {
     await renderLive([message()], [message({ message: 'One', createdAt: minutesAgo(0) })])
     const area = stubScrollArea()
@@ -269,7 +339,7 @@ describe('ChatPage live updates', () => {
       [message()],
       [
         message({
-          author: 'Nando',
+          author: 'Nandola',
           message: 'From my other tab',
           createdAt: minutesAgo(0),
         }),

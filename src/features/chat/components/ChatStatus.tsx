@@ -32,7 +32,7 @@ interface ChatErrorProps {
 
 export function ChatError({ error, onRetry, isRetrying }: ChatErrorProps) {
   return (
-    <div className={`${styles.panel} ${styles.error}`} role="alert">
+    <div className={[styles.panel, styles.error].join(' ')} role="alert">
       <p className={styles.title}>Couldn't load messages</p>
       <p className={styles.text}>{error.message}</p>
       <button

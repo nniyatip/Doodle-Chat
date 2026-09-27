@@ -1,47 +1,68 @@
 import { useQueryClient } from '@tanstack/react-query'
 import { useEffect, useState } from 'react'
 
-import { getMessages, MESSAGES_PAGE_SIZE, type Message } from '../../../api/messages.ts'
-import { mergeMessages } from '../lib/mergeMessages.ts'
+import { isTransientError } from '../../../api/http.ts'
+import { getMessages, MESSAGES_PAGE_SIZE } from '../../../api/messages.ts'
+import { addFetched, nextPageAfter, pollAfter } from '../lib/chatMessages.ts'
 import { messagesQueryKey } from './useMessages.ts'
 
 export const POLL_INTERVAL_MS = 3000
+/** How far back each poll re-reads; see `pollAfter`. */
+export const POLL_OVERLAP_MS = 5000
 const FAILURES_BEFORE_WARNING = 2
-/** `after` for an empty chat: every message is new. */
-const BEGINNING_OF_TIME = new Date(0).toISOString()
+
+interface Failure {
+  count: number
+  error: Error
+}
 
 /**
- * The API has no push, so this asks for messages newer than the newest one shown, every few
- * seconds while the tab is visible, and merges them into the list. It uses the server's
- * `createdAt`, so a wrong client clock doesn't matter.
+ * The API has no push, so this asks for messages newer than the newest one fetched, every
+ * few seconds while the tab is visible, and merges them into the list. It uses the
+ * server's `createdAt`, so a wrong client clock doesn't matter.
+ *
+ * Returns the error to show when polling keeps failing, or straight away when retrying
+ * can't help (e.g. a wrong token).
  */
-export function usePollNewMessages(enabled: boolean): { isFailing: boolean } {
+export function usePollNewMessages(enabled: boolean): { error: Error | undefined } {
   const queryClient = useQueryClient()
-  const [failures, setFailures] = useState(0)
+  const [failure, setFailure] = useState<Failure>()
 
   useEffect(() => {
     if (!enabled) return
     let controller: AbortController | null = null
 
+    /**
+     * Reads pages until one isn't full, so a long absence is caught up in one go, and a
+     * busy few seconds re-read before the sync point can't hide a late message.
+     */
+    const catchUp = async (signal: AbortSignal) => {
+      const chat = queryClient.getQueryData(messagesQueryKey)
+      if (!chat) return
+      let after: string | undefined = pollAfter(chat, POLL_OVERLAP_MS)
+      while (after !== undefined) {
+        const page = await getMessages({ after, limit: MESSAGES_PAGE_SIZE, signal })
+        const updated = queryClient.setQueryData(
+          messagesQueryKey,
+          (latest) => latest && addFetched(latest, page),
+        )
+        if (!updated || page.length < MESSAGES_PAGE_SIZE) return
+        after = nextPageAfter(page, after)
+      }
+    }
+
     const poll = async () => {
-      const current = queryClient.getQueryData<Message[]>(messagesQueryKey)
-      if (controller || document.visibilityState === 'hidden' || !current) return
+      if (controller || document.visibilityState === 'hidden') return
 
       const request = new AbortController()
       controller = request
       try {
-        const incoming = await getMessages({
-          after: current.at(-1)?.createdAt ?? BEGINNING_OF_TIME,
-          limit: MESSAGES_PAGE_SIZE,
-          signal: request.signal,
-        })
-        queryClient.setQueryData<Message[]>(
-          messagesQueryKey,
-          (latest) => latest && mergeMessages(latest, incoming),
-        )
-        setFailures(0)
-      } catch {
-        if (!request.signal.aborted) setFailures((count) => count + 1)
+        await catchUp(request.signal)
+        setFailure(undefined)
+      } catch (error) {
+        if (request.signal.aborted) return
+        const cause = error instanceof Error ? error : new Error(String(error))
+        setFailure((previous) => ({ count: (previous?.count ?? 0) + 1, error: cause }))
       } finally {
         if (controller === request) controller = null
       }
@@ -68,5 +89,8 @@ export function usePollNewMessages(enabled: boolean): { isFailing: boolean } {
     }
   }, [enabled, queryClient])
 
-  return { isFailing: failures >= FAILURES_BEFORE_WARNING }
+  const showError =
+    failure !== undefined &&
+    (failure.count >= FAILURES_BEFORE_WARNING || !isTransientError(failure.error))
+  return { error: showError ? failure.error : undefined }
 }

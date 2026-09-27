@@ -2,7 +2,7 @@ import { getEnv } from '../config/env.ts'
 
 export const REQUEST_TIMEOUT_MS = 10_000
 
-export interface FieldError {
+interface FieldError {
   field: string
   message: string
 }
@@ -11,15 +11,21 @@ export interface FieldError {
 export class ApiError extends Error {
   /** HTTP status, or 0 when the server could not be reached. */
   readonly status: number
-  readonly fieldErrors: FieldError[]
 
-  constructor(status: number, message: string, fieldErrors: FieldError[] = []) {
+  constructor(status: number, message: string) {
     super(message)
     this.name = 'ApiError'
     this.status = status
-    this.fieldErrors = fieldErrors
   }
 }
+
+/**
+ * Failures that can succeed on a second try: network errors, timeouts and server errors.
+ * Anything else (wrong token, invalid input, a bug) fails the same way again.
+ */
+export const isTransientError = (error: unknown): boolean =>
+  error instanceof ApiError &&
+  (error.status === 0 || error.status === 408 || error.status >= 500)
 
 export interface RequestOptions {
   method?: 'GET' | 'POST'
@@ -51,8 +57,9 @@ const buildUrl = (apiUrl: string, path: string, query: RequestOptions['query'] =
 }
 
 const readErrorPayload = async (response: Response): Promise<unknown> => {
+  const text = await response.text()
   try {
-    return JSON.parse(await response.text())
+    return JSON.parse(text)
   } catch {
     return undefined
   }
@@ -71,20 +78,22 @@ const toApiError = async (response: Response): Promise<ApiError> => {
   const payload = await readErrorPayload(response)
   const message =
     isRecord(payload) && isRecord(payload.error) ? payload.error.message : undefined
-  const fieldErrors = Array.isArray(message) ? message.filter(isFieldError) : []
-
-  const [firstFieldError] = fieldErrors
-  if (firstFieldError) return new ApiError(status, firstFieldError.message, fieldErrors)
+  // Validation errors list every invalid field; the first one is enough for the UI.
+  const firstFieldError = Array.isArray(message) ? message.find(isFieldError) : undefined
+  if (firstFieldError) return new ApiError(status, firstFieldError.message)
   if (status >= 500) return new ApiError(status, ERROR_MESSAGES.server)
   if (typeof message === 'string' && message) return new ApiError(status, message)
   return new ApiError(status, `Request failed with status ${status}.`)
 }
 
-/** Authenticated JSON request against the chat API with a timeout and normalised errors. */
-export async function request<T>(
+/**
+ * Authenticated JSON request against the chat API with a timeout and normalised errors.
+ * The parsed body is `unknown`: callers check its shape before using it.
+ */
+export async function request(
   path: string,
   { method = 'GET', query, body, signal }: RequestOptions = {},
-): Promise<T> {
+): Promise<unknown> {
   const { apiUrl, apiToken } = getEnv()
 
   // AbortSignal.any() would be simpler but is unavailable in Safari < 17.4 (Vite targets 16.4).
@@ -114,9 +123,8 @@ export async function request<T>(
     if (!response.ok) throw await toApiError(response)
 
     const text = await response.text()
-    if (!text) return undefined as T
     try {
-      return JSON.parse(text) as T
+      return JSON.parse(text)
     } catch {
       throw new ApiError(response.status, ERROR_MESSAGES.invalidResponse)
     }

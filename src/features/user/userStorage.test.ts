@@ -26,10 +26,10 @@ describe('userStorage', () => {
   it('returns null when nothing is saved, and the name once saved', () => {
     expect(storage.readUserName()).toBeNull()
 
-    storage.saveUserName('Nando')
+    storage.saveUserName('Nandola')
 
-    expect(storage.readUserName()).toBe('Nando')
-    expect(localStorage.getItem(STORAGE_KEY)).toBe('Nando')
+    expect(storage.readUserName()).toBe('Nandola')
+    expect(localStorage.getItem(STORAGE_KEY)).toBe('Nandola')
   })
 
   it('ignores and removes a saved value that is not a valid name', () => {
@@ -49,21 +49,30 @@ describe('userStorage', () => {
     expect(storage.readUserName()).toBe('Maddie')
   })
 
-  it('falls back to memory when only writing fails (e.g. Safari private mode)', () => {
-    failWrites()
+  it('reports name changes from other tabs until unsubscribed', () => {
+    const onChange = vi.fn()
+    const unsubscribe = storage.subscribeToUserName(onChange)
+    const fromOtherTab = (key: string | null) =>
+      window.dispatchEvent(new StorageEvent('storage', { key }))
 
-    storage.saveUserName('Maddie')
+    fromOtherTab(STORAGE_KEY)
+    // `key` is null when the other tab cleared all storage.
+    fromOtherTab(null)
+    fromOtherTab('something-else')
+    expect(onChange).toHaveBeenCalledTimes(2)
 
-    expect(storage.readUserName()).toBe('Maddie')
+    unsubscribe()
+    fromOtherTab(STORAGE_KEY)
+    expect(onChange).toHaveBeenCalledTimes(2)
   })
 
   it('prefers the newer in-memory name over an older stored one', () => {
-    storage.saveUserName('Nando')
+    storage.saveUserName('Nandola')
     failWrites()
 
     storage.saveUserName('Maddie')
 
-    expect(localStorage.getItem(STORAGE_KEY)).toBe('Nando')
+    expect(localStorage.getItem(STORAGE_KEY)).toBe('Nandola')
     expect(storage.readUserName()).toBe('Maddie')
   })
 })

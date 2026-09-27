@@ -3,23 +3,21 @@
   flex-direction: column;
   gap: var(--space-2);
   /* Same width as the message column, which has --space-6 padding inside its max width. */
-  max-width: calc(var(--content-max-width) - 2 * var(--space-6));
+  max-width: var(--column-max-width);
   margin: 0 auto;
 }
 
 .row {
   display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
   gap: var(--space-2);
 }
 
 .input {
-  flex: 1;
+  composes: field-input from global;
+  flex: 1 1 8rem;
   min-width: 0;
-  min-height: var(--control-height);
-  padding: 0 var(--space-3);
-  background: var(--color-surface);
-  border: 2px solid var(--color-primary-dark);
-  border-radius: var(--radius-sm);
 }
 
 /* The browser default grey (and Firefox's reduced opacity) can fall below 4.5:1. */
@@ -28,37 +26,14 @@
   opacity: 1;
 }
 
-.input[aria-invalid='true'] {
-  border-color: var(--color-danger);
-}
-
 .send {
+  composes: primary-button from global;
   flex-shrink: 0;
-  min-height: var(--control-height);
-  padding: 0 var(--space-6);
-  font-weight: 700;
-  color: var(--color-on-accent);
-  background: var(--color-accent);
-  border-radius: var(--radius-sm);
-  transition: background-color var(--duration-fast) var(--easing);
-}
-
-.send:hover:not([aria-disabled='true']) {
-  background: var(--color-accent-hover);
-}
-
-.send[aria-disabled='true'] {
-  cursor: progress;
-  opacity: 0.7;
 }
 
 /* Error and counter sit on light backgrounds: small text on the blue bar fails contrast. */
 .error {
-  padding: var(--space-2) var(--space-3);
-  font-size: var(--text-sm);
-  color: var(--color-danger);
-  background: var(--color-danger-bg);
-  border-radius: var(--radius-sm);
+  composes: field-error from global;
 }
 
 .counter {

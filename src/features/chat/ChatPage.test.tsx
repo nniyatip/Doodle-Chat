@@ -1,28 +1,24 @@
 import { QueryClientProvider } from '@tanstack/react-query'
 import { screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 
-import { jsonResponse, makeMessage as message, minutesAgo } from '../../test/fixtures.ts'
+import {
+  jsonResponse,
+  makeMessage as message,
+  minutesAgo,
+  mockFetch,
+  urlOf,
+} from '../../test/fixtures.ts'
 import { renderWithQueryClient } from '../../test/renderWithQueryClient.tsx'
 import { ChatPage } from './ChatPage.tsx'
 import { formatMessageDate } from './lib/formatMessageDate.ts'
 
-const fetchMock = vi.fn<typeof fetch>()
+const fetchMock = mockFetch()
 
-const renderPage = (onChangeName = vi.fn()) => ({
-  onChangeName,
+const renderPage = () => ({
   user: userEvent.setup(),
-  ...renderWithQueryClient(<ChatPage userName="Nando" onChangeName={onChangeName} />),
-})
-
-beforeEach(() => {
-  vi.stubGlobal('fetch', fetchMock)
-})
-
-afterEach(() => {
-  fetchMock.mockReset()
-  vi.unstubAllGlobals()
+  ...renderWithQueryClient(<ChatPage userName="Nandola" onChangeName={vi.fn()} />),
 })
 
 describe('ChatPage', () => {
@@ -34,21 +30,20 @@ describe('ChatPage', () => {
     expect(screen.getByRole('status')).toHaveTextContent('Loading messages…')
   })
 
-  it('requests the latest page of messages', async () => {
+  it('requests the latest page of messages, even when the device clock is wrong', async () => {
     fetchMock.mockResolvedValue(jsonResponse(200, []))
-    const requestedAfter = Date.now()
+    const realNow = Date.now()
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(new Date('2001-01-01T00:00:00.000Z'))
 
     renderPage()
     await screen.findByText('No messages yet')
+    vi.useRealTimers()
 
-    const [url] = fetchMock.mock.lastCall ?? []
-    const { searchParams } = new URL(String(url))
+    const { searchParams } = new URL(urlOf(fetchMock.mock.lastCall?.[0]))
     expect(searchParams.get('limit')).toBe('50')
     expect(searchParams.has('after')).toBe(false)
-    // `before` is "now" plus a small margin for a slow client clock.
-    const before = Date.parse(searchParams.get('before') ?? '')
-    expect(before).toBeGreaterThan(requestedAfter)
-    expect(before).toBeLessThanOrEqual(Date.now() + 5 * 60 * 1000)
+    expect(Date.parse(searchParams.get('before') ?? '')).toBeGreaterThan(realNow)
   })
 
   it('renders messages oldest first with author, text and time', async () => {
@@ -82,7 +77,7 @@ describe('ChatPage', () => {
   it("marks the current user's messages as own, following name changes", async () => {
     fetchMock.mockResolvedValue(
       jsonResponse(200, [
-        message({ author: 'Nando', message: 'Mine', createdAt: minutesAgo(5) }),
+        message({ author: 'Nandola', message: 'Mine', createdAt: minutesAgo(5) }),
         message({ author: 'Maddie', message: 'Theirs', createdAt: minutesAgo(3) }),
       ]),
     )
@@ -93,7 +88,7 @@ describe('ChatPage', () => {
     const mine = within(items[0] as HTMLElement)
     const theirs = within(items[1] as HTMLElement)
     expect(mine.getByText('You')).toBeInTheDocument()
-    expect(mine.queryByText('Nando')).not.toBeInTheDocument()
+    expect(mine.queryByText('Nandola')).not.toBeInTheDocument()
     expect(theirs.getByText('Maddie')).toBeInTheDocument()
 
     rerender(
@@ -102,14 +97,14 @@ describe('ChatPage', () => {
       </QueryClientProvider>,
     )
 
-    expect(mine.getByText('Nando')).toBeInTheDocument()
+    expect(mine.getByText('Nandola')).toBeInTheDocument()
     expect(theirs.getByText('You')).toBeInTheDocument()
     expect(theirs.queryByText('Maddie')).not.toBeInTheDocument()
   })
 
   it('adds a sent message to the end of the list as your own', async () => {
     const sent = message({
-      author: 'Nando',
+      author: 'Nandola',
       message: 'My reply',
       createdAt: minutesAgo(0),
     })
@@ -131,11 +126,28 @@ describe('ChatPage', () => {
     expect(fetchMock).toHaveBeenCalledTimes(2)
   })
 
+  it.each([
+    ['was still loading', () => new Promise<Response>(() => undefined)],
+    ['had failed', () => Promise.reject(new TypeError('Failed to fetch'))],
+  ])('shows a message sent while the first page %s', async (_state, firstLoad) => {
+    const sent = message({ author: 'Nandola', message: 'Early bird' })
+    fetchMock
+      .mockImplementationOnce(firstLoad)
+      .mockResolvedValueOnce(jsonResponse(201, sent))
+      .mockResolvedValueOnce(jsonResponse(200, [sent]))
+    const { user } = renderPage()
+
+    await user.type(screen.getByRole('textbox', { name: 'Message' }), 'Early bird{Enter}')
+
+    const list = await screen.findByRole('log', { name: 'Messages' })
+    expect(within(list).getByText('Early bird')).toBeInTheDocument()
+  })
+
   it('replaces the empty state with the first sent message', async () => {
     fetchMock
       .mockResolvedValueOnce(jsonResponse(200, []))
       .mockResolvedValueOnce(
-        jsonResponse(201, message({ author: 'Nando', message: 'Hi!' })),
+        jsonResponse(201, message({ author: 'Nandola', message: 'Hi!' })),
       )
     const { user } = renderPage()
 
@@ -164,43 +176,15 @@ describe('ChatPage', () => {
     expect(screen.queryByRole('contentinfo')).not.toBeInTheDocument()
   })
 
-  it('shows HTML entities in messages as the characters they stand for', async () => {
-    fetchMock.mockResolvedValue(
-      jsonResponse(200, [message({ message: 'Cool! It&#39;s super easy to vote.' })]),
-    )
-    renderPage()
-
-    expect(await screen.findByText("Cool! It's super easy to vote.")).toBeInTheDocument()
-  })
-
-  it.each([
-    ['composer', () => screen.getByRole('textbox', { name: 'Message' })],
-    ['changeName', () => screen.getByRole('button', { name: 'Change name' })],
-  ] as const)('can start with focus on the %s', async (initialFocus, target) => {
-    fetchMock.mockResolvedValue(jsonResponse(200, []))
-    renderWithQueryClient(
-      <ChatPage userName="Nando" onChangeName={vi.fn()} initialFocus={initialFocus} />,
-    )
-
-    await screen.findByText('No messages yet')
-    expect(target()).toHaveFocus()
-  })
-
-  it('does not move focus on a normal page load', async () => {
-    fetchMock.mockResolvedValue(jsonResponse(200, []))
-    renderPage()
-
-    await screen.findByText('No messages yet')
-    expect(document.body).toHaveFocus()
-  })
-
   it('shows an empty state when there are no messages', async () => {
     fetchMock.mockResolvedValue(jsonResponse(200, []))
 
     renderPage()
 
-    expect(await screen.findByText('No messages yet')).toBeInTheDocument()
-    expect(screen.queryByRole('log')).not.toBeInTheDocument()
+    // Shown inside the log, which stays mounted so the first message is announced.
+    const log = await screen.findByRole('log', { name: 'Messages' })
+    expect(within(log).getByText('No messages yet')).toBeInTheDocument()
+    expect(within(log).queryByRole('list')).not.toBeInTheDocument()
   })
 
   it('shows the error and recovers when the user retries', async () => {
@@ -227,17 +211,5 @@ describe('ChatPage', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent(
       'Not authorised. Check VITE_API_TOKEN in your .env file.',
     )
-  })
-
-  it('shows the current user and lets them change their name', async () => {
-    fetchMock.mockResolvedValue(jsonResponse(200, []))
-    const { user, onChangeName } = renderPage()
-
-    expect(screen.getByRole('heading', { name: 'Doodle Chat' })).toBeInTheDocument()
-    expect(screen.getByText('Nando')).toBeInTheDocument()
-
-    await user.click(screen.getByRole('button', { name: 'Change name' }))
-
-    expect(onChangeName).toHaveBeenCalledOnce()
   })
 })

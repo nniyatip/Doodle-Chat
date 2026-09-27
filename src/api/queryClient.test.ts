@@ -1,7 +1,29 @@
-import { describe, expect, it } from 'vitest'
+import { MutationObserver, onlineManager } from '@tanstack/react-query'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { ApiError } from './http.ts'
-import { shouldRetry } from './queryClient.ts'
+import { createQueryClient, shouldRetry } from './queryClient.ts'
+
+describe('createQueryClient', () => {
+  afterEach(() => {
+    onlineManager.setOnline(true)
+  })
+
+  it('still sends requests while the browser reports being offline', async () => {
+    onlineManager.setOnline(false)
+    const client = createQueryClient()
+    const queryFn = vi.fn(async () => [])
+    const mutationFn = vi.fn(async () => 'sent')
+
+    void client.query({ queryKey: ['messages'], queryFn })
+    void new MutationObserver(client, { mutationFn }).mutate()
+
+    await vi.waitFor(() => {
+      expect(queryFn).toHaveBeenCalledOnce()
+      expect(mutationFn).toHaveBeenCalledOnce()
+    })
+  })
+})
 
 describe('shouldRetry', () => {
   it('does not retry client errors', () => {

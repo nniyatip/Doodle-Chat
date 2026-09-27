@@ -29,6 +29,19 @@ export function readUserName(): string | null {
   return null
 }
 
+/**
+ * Calls `onChange` when another tab saves or clears the name (browsers only fire `storage`
+ * events in the other tabs). Returns a function that stops listening.
+ */
+export function subscribeToUserName(onChange: () => void): () => void {
+  const onStorage = (event: StorageEvent) => {
+    // `key` is null when the other tab cleared all storage.
+    if (event.key === STORAGE_KEY || event.key === null) onChange()
+  }
+  window.addEventListener('storage', onStorage)
+  return () => window.removeEventListener('storage', onStorage)
+}
+
 /** Saves a name that has already been validated with `validateUserName`. */
 export function saveUserName(name: string): void {
   try {
